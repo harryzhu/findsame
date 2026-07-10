@@ -5,7 +5,7 @@ find same(duplicate) files in a folder quickly.
 ## Usage
 
 ```Bash
-./findsame --source-dir="/Volumes/HDD4/v2"
+./findsame --source-dir="/Volumes/SSD1T/v2"
 
 # --log-dir= : the path for saving result, default: ./logs
 # --debug=true|false : if show debug info, default: false
