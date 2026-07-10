@@ -117,13 +117,19 @@ func TaskExportSameFiles() error {
 	}
 
 	//
-
 	SaveFile(fpsame, styleCSS+"<ul>")
 	var line string
 	var lines []string
+
+	sqlCmd = "select fpath from pathash where fhash = ? order by fpath;"
+	stmt, err := db.Prepare(sqlCmd)
+	FatalError("TaskExportSameFiles:Prepare", err)
+
+	var cfpaths []string
 	for _, cfhash := range hpsame {
 		DebugInfo("cfhash", cfhash)
-		cfpaths := dbGetPathByHash(cfhash)
+		cfpaths = cfpaths[:0]
+		cfpaths = dbGetPathByHash(cfhash, stmt)
 		line = strings.Join(cfpaths, "<br>")
 		lines = append(lines, strings.Join([]string{"<li>", line, "</li>"}, ""))
 		if len(lines) > 100 {
@@ -131,6 +137,8 @@ func TaskExportSameFiles() error {
 			lines = lines[:0]
 		}
 	}
+
+	stmt.Close()
 
 	SaveFile(fpsame, strings.Join(lines, ""))
 	SaveFile(fpsame, "</ul></body></html>")

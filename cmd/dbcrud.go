@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"database/sql"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,76 +25,25 @@ func dbInit() error {
 	return nil
 }
 
-func dbUpdatePathHash(cfpath, cfhash string) error {
-	sqlCmd := strings.Join([]string{`INSERT INTO pathash(fpath,fhash) VALUES("`,
-		cfpath, `","`, cfhash, `") ON CONFLICT(fpath) DO UPDATE SET fhash = "`, cfhash, `";`}, "")
-	//DebugInfo("UpdatePathHash", sqlCmd)
-	_, err := db.Exec(sqlCmd)
+func dbGetPathByHash(fhash string, stmt *sql.Stmt) (files []string) {
+	rows, err := stmt.Query(fhash)
 	if err != nil {
-		PrintError("UpdatePathHash", err)
-		return err
+		PrintError("dbGetPathByHash: stmt.Query", err)
+		return files
 	}
-
-	return nil
-}
-
-func dbUpdatePathSize(cfpath, cfsize string) error {
-	sqlCmd := strings.Join([]string{`INSERT INTO pathash(fpath,fsize) VALUES("`,
-		cfpath, `","`, cfsize, `") ON CONFLICT(fpath) DO UPDATE SET fsize = "`, cfsize, `";`}, "")
-	//DebugInfo("UpdatePathSize", sqlCmd)
-	_, err := db.Exec(sqlCmd)
-	if err != nil {
-		PrintError("UpdatePathSize", err)
-		return err
-	}
-
-	return nil
-}
-
-func dbDump() (ph map[string]string) {
-	ph = make(map[string]string, 8192)
-	sqlCmd := "select fpath,fhash from pathash order by fhash;"
-	DebugInfo("dbDump", sqlCmd)
-	rows, err := db.Query(sqlCmd)
-	PrintError("dbDump", err)
-
-	var cfpath string
-	var cfhash string
-	for rows.Next() {
-		err = rows.Scan(&cfpath, &cfhash)
-		PrintError("dbDump", err)
-		ph[cfpath] = cfhash
-	}
-	return ph
-}
-
-func dbGetPathByHash(fhash string) (files []string) {
-	sqlCmd := `select fpath from pathash where fhash ="` + fhash + `" order by fpath;`
-	rows, err := db.Query(sqlCmd)
 
 	var fpath string
 	for rows.Next() {
 		err = rows.Scan(&fpath)
-		PrintError("dbGetPathByHash", err)
+		if err != nil {
+			PrintError("dbGetPathByHash", err)
+			continue
+		}
 		files = append(files, fpath)
 	}
 	rows.Close()
+
 	DebugInfo("dbGetPathByHash", fhash, " :: ", files)
-	return files
-}
-
-func dbGetPathBySize(fsize string) (files []string) {
-	sqlCmd := `select fpath from pathash where fsize ="` + fsize + `" order by fpath;`
-	rows, err := db.Query(sqlCmd)
-
-	var fpath string
-	for rows.Next() {
-		err = rows.Scan(&fpath)
-		PrintError("dbGetPathBySize", err)
-		files = append(files, fpath)
-	}
-	rows.Close()
-	DebugInfo("dbGetPathBySize", fsize, " :: ", files)
 	return files
 }
 
@@ -169,16 +118,25 @@ func dbUpdateHashBySameSize() error {
 	rows.Close()
 
 	//
+	tx, err = db.Begin()
+	FatalError("dbUpdateHashBySameSize:Begin", err)
+	sqlCmd = "INSERT INTO pathash(fpath,fhash) VALUES(?,?) ON CONFLICT(fpath) DO UPDATE SET fhash = ?;"
+	stmt, err = tx.Prepare(sqlCmd)
+	FatalError("dbUpdateHashBySameSize:Prepare", err)
+
 	hashTotal := 0
 	safePathHash.Range(func(key, val any) bool {
 		k := key.(string)
 		v := val.(string)
 		if k != "" && v != "" {
 			hashTotal++
-			dbUpdatePathHash(k, v)
+			stmt.Exec(k, v, v)
 		}
 		return true
 	})
+
+	stmt.Close()
+	tx.Commit()
 
 	chanPathHash <- doneSameEntry
 
