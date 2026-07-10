@@ -7,8 +7,9 @@ import (
 	"database/sql"
 	"path/filepath"
 
-	// no need CGO
-	_ "github.com/glebarez/go-sqlite"
+	// no  CGO needed
+	//_ "github.com/glebarez/go-sqlite"
+	_ "modernc.org/sqlite"
 )
 
 var (
