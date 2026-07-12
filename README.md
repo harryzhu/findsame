@@ -20,9 +20,9 @@ find same(duplicate) files in the folder quickly.
 
 ## Result
 
-在 `--log-dir=` 指定的路径下，有 `empty-files.html` 和 `same-files.html` 两个文件.
+在 `--log-dir=` 指定的路径下，有 `empty-files.txt` 和 `same-files.html` 两个文件.
 
-1) `empty-files.html`: 所有空文件的路径
+1) `empty-files.txt`: 所有空文件的路径
 
 2) `same-files.html`: 内容完全相同（重复）的文件，按组分开列表
 
