@@ -1,6 +1,6 @@
 # findsame
 
-find same(duplicate) files in a folder quickly.
+find same(duplicate) files in the folder quickly.
 
 ## Usage
 

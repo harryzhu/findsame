@@ -3,9 +3,7 @@ package cmd
 import (
 	"database/sql"
 	"fmt"
-	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -47,81 +45,53 @@ func dbGetPathByHash(fhash string, stmt *sql.Stmt) (files []string) {
 	return files
 }
 
+func dbDeleteUniqueBySize() error {
+	t1 := time.Now()
+	//
+	tx, err := db.Begin()
+	FatalError("dbDeleteUniqueBySize:Begin", err)
+	sqlCmd := `DELETE FROM pathash WHERE fsize IN 
+	(select fsize from pathash group by fsize having count(*) = 1);`
+	stmt, err := tx.Prepare(sqlCmd)
+	FatalError("dbDeleteUniqueBySize:Prepare", err)
+
+	res, err := stmt.Exec()
+	PrintError("dbDeleteUniqueBySize", err)
+	deleteCount, err := res.RowsAffected()
+	PrintError("dbDeleteUniqueBySize", err)
+
+	stmt.Close()
+	tx.Commit()
+
+	DebugInfo("dbDeleteUniqueBySize", fmt.Sprintf("%d", deleteCount), ", Elapse ", time.Since(t1))
+
+	return nil
+}
+
 func dbUpdateHashBySameSize() error {
 	t1 := time.Now()
 	//
-	sqlCmd := `select fsize from pathash group by fsize having count(*) > 1;`
-	rows, err := db.Query(sqlCmd)
+	dbDeleteUniqueBySize()
+	//
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		TaskHashFileFromChan()
+	}()
 
-	var fsize string
-	var fsizelist []string
-	for rows.Next() {
-		err = rows.Scan(&fsize)
-		PrintError("dbUpdateHashBySameSize", err)
-		fsizelist = append(fsizelist, fsize)
-	}
-	rows.Close()
+	go func() {
+		defer wg.Done()
+		TaskSelectFilesForHash()
+	}()
 
-	if len(fsizelist) > 10 {
-		DebugInfo("same size", fsizelist[0:10], " ...")
-	} else {
-		DebugInfo("same size", fsizelist)
-	}
+	wg.Wait()
 
 	//
 	tx, err := db.Begin()
 	FatalError("dbUpdateHashBySameSize:Begin", err)
-	sqlCmd = "UPDATE pathash SET fhash = ? where fsize = ?;"
+	sqlCmd := "INSERT INTO pathash(fpath,fhash) VALUES(?,?) ON CONFLICT(fpath) DO UPDATE SET fhash = ?;"
 	stmt, err := tx.Prepare(sqlCmd)
-	FatalError("dbUpdateHashBySameSize:Prepare", err)
-	for _, size := range fsizelist {
-		_, err = stmt.Exec("-", size)
-		PrintError("dbUpdateHashBySameSize", err)
-	}
-	stmt.Close()
-	tx.Commit()
-
-	//
-	sqlCmd = `select fpath from pathash where fhash ="-";`
-	rows, err = db.Query(sqlCmd)
-
-	var fpath string
-	var processCount int = 0
-	wg := sync.WaitGroup{}
-	hashCount := int32(0)
-	for rows.Next() {
-		err = rows.Scan(&fpath)
-		PrintError("dbUpdateHashBySameSize", err)
-
-		wg.Add(1)
-		go func(fpath string) {
-			defer wg.Done()
-			atomic.AddInt32(&hashCount, 1)
-			safePathHash.Store(fpath, GetXxhashFile(ToUnixSlash(filepath.Join(SourceDir, fpath))))
-			atomic.AddInt32(&hashCount, -1)
-		}(fpath)
-
-		if IsSerial {
-			wg.Wait()
-		} else {
-			curHashCount := atomic.LoadInt32(&hashCount)
-			if curHashCount > int32(numCPU*2) {
-				wg.Wait()
-			}
-		}
-
-		processCount++
-		PrintSpinner(fmt.Sprintf("%d +++", processCount))
-
-	}
-	wg.Wait()
-	rows.Close()
-
-	//
-	tx, err = db.Begin()
-	FatalError("dbUpdateHashBySameSize:Begin", err)
-	sqlCmd = "INSERT INTO pathash(fpath,fhash) VALUES(?,?) ON CONFLICT(fpath) DO UPDATE SET fhash = ?;"
-	stmt, err = tx.Prepare(sqlCmd)
 	FatalError("dbUpdateHashBySameSize:Prepare", err)
 
 	hashTotal := 0
@@ -137,8 +107,6 @@ func dbUpdateHashBySameSize() error {
 
 	stmt.Close()
 	tx.Commit()
-
-	chanPathHash <- doneSameEntry
 
 	PrintlnInfo("dbUpdateHashBySameSize", "Hash ", hashTotal, ", Elapse ", time.Since(t1))
 	return nil

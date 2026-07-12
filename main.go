@@ -43,7 +43,7 @@ func onExit() {
 	go func() {
 		<-c
 		cmd.TaskCancelAll()
-		time.Sleep(time.Second * 2)
+		time.Sleep(time.Second)
 		os.Exit(0)
 	}()
 }

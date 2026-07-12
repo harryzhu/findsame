@@ -48,7 +48,6 @@ var rootCmd = &cobra.Command{
 			FatalError(strings.Join([]string{"--source-dir=", SourceDir}, ""), err)
 			os.Exit(0)
 		}
-
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		dbInit()

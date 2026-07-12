@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	bufSize int = 1024 * 64
+	bufSize int = 1024 * 128
 )
 
 func MakeDirs(dpath string) error {
@@ -39,6 +39,28 @@ func GetXxhashFile(fpath string) string {
 		PrintError("GetXxhashFile", err)
 		return ""
 	}
+
+	return strconv.FormatUint(hasher.Sum64(), 10)
+}
+
+func GetXxhashBlock(fpath string) string {
+	fin, err := os.Open(fpath)
+	PrintError("GetXxhashFileOnce", err)
+	defer fin.Close()
+
+	hasher := xxhash.New()
+	buffer := make([]byte, bufSize)
+	_, err = fin.Read(buffer)
+	if err != nil {
+		PrintError("GetXxhashFileOnce", err)
+		return ""
+	}
+	_, err = hasher.Write(buffer)
+	if err != nil {
+		PrintError("GetXxhashFileOnce", err)
+		return ""
+	}
+
 	return strconv.FormatUint(hasher.Sum64(), 10)
 }
 

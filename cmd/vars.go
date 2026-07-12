@@ -5,12 +5,12 @@ import (
 )
 
 func init() {
-	doneSameEntry["__ALLDONE__"] = "__ALLDONE__"
 	doneEmptyEntry = "__ALLDONE__"
+	doneHashEntry = "__ALLDONE__"
 }
 
-var chanPathHash chan map[string]string = make(chan map[string]string, 8192)
-var doneSameEntry map[string]string = make(map[string]string, 1)
+var chanHashFile chan string = make(chan string, numCPU*2)
+var doneHashEntry string
 
 var chanEmptyFile chan string = make(chan string, 8192)
 var doneEmptyEntry string

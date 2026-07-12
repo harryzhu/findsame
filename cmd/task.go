@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -52,11 +53,62 @@ func TaskUpdateFileSize() error {
 	stmt.Close()
 	tx.Commit()
 
-	chanPathHash <- doneSameEntry
 	chanEmptyFile <- doneEmptyEntry
 
 	PrintlnInfo("TaskUpdateFileSize", "Total ", fileCount, ", Elapse ", time.Since(t1))
 
+	return nil
+}
+
+func TaskHashFileFromChan() error {
+	t1 := time.Now()
+	wg := sync.WaitGroup{}
+	for {
+		ch := <-chanHashFile
+		if ch == doneHashEntry {
+			break
+		}
+
+		if IsCancelAll {
+			break
+		}
+
+		wg.Add(1)
+		go func(ch string, SourceDir string) {
+			defer wg.Done()
+			safePathHash.Store(ch, GetXxhashFile(ToUnixSlash(filepath.Join(SourceDir, ch))))
+		}(ch, SourceDir)
+
+		if IsSerial {
+			wg.Wait()
+		}
+	}
+	wg.Wait()
+
+	PrintlnInfo("TaskHashFiles Elapse", time.Since(t1))
+	return nil
+}
+
+func TaskSelectFilesForHash() error {
+	t1 := time.Now()
+	sqlCmd := `select fpath from pathash order by fpath;`
+	rows, err := db.Query(sqlCmd)
+
+	var fpath string
+	var processCount int = 0
+	for rows.Next() {
+		err = rows.Scan(&fpath)
+		PrintError("TaskSelectFiles", err)
+		chanHashFile <- fpath
+
+		processCount++
+		PrintSpinner(fmt.Sprintf("%d +++", processCount))
+	}
+	rows.Close()
+
+	chanHashFile <- doneHashEntry
+
+	PrintlnInfo("TaskSelectFiles Elapse", time.Since(t1))
 	return nil
 }
 
@@ -72,7 +124,7 @@ func TaskExportEmptyFiles() error {
 	fcount := 0
 	for {
 		ch := <-chanEmptyFile
-		if ch == "__ALLDONE__" {
+		if ch == doneEmptyEntry {
 			break
 		}
 
@@ -126,10 +178,13 @@ func TaskExportSameFiles() error {
 	FatalError("TaskExportSameFiles:Prepare", err)
 
 	var cfpaths []string
+	var fileCount, duplicateCount int
 	for _, cfhash := range hpsame {
 		DebugInfo("cfhash", cfhash)
 		cfpaths = cfpaths[:0]
 		cfpaths = dbGetPathByHash(cfhash, stmt)
+		fileCount++
+		duplicateCount += len(cfpaths)
 		line = strings.Join(cfpaths, "<br>")
 		lines = append(lines, strings.Join([]string{"<li>", line, "</li>"}, ""))
 		if len(lines) > 100 {
@@ -141,7 +196,7 @@ func TaskExportSameFiles() error {
 	stmt.Close()
 
 	SaveFile(fpsame, strings.Join(lines, ""))
-	SaveFile(fpsame, "</ul></body></html>")
+	SaveFile(fpsame, "</ul><hr>"+fmt.Sprintf("Files: %d, Same(Total): %d", fileCount, duplicateCount)+"<br></body></html>")
 
 	fpsame.Close()
 
@@ -152,13 +207,19 @@ func TaskExportSameFiles() error {
 
 func TaskCancelAll() error {
 	IsCancelAll = true
-	PrintlnInfo("TaskCancelAll", " cancel all ...")
+	PrintlnInfo(Cyan("TaskCancelAll"), " cancel all ...")
+	maxSleep := 0
 	for {
 		if IsReadyForExit {
 			break
 		}
+		if maxSleep > 10 {
+			break
+		}
 		DebugInfo("TaskCancelAll", "waiting for IsReadyForExit")
+		DebugInfo("chan", "chanEmptyFile: ", len(chanEmptyFile), ", chanHashFile: ", len(chanHashFile))
 		time.Sleep(time.Second)
+		maxSleep++
 	}
 	return nil
 }
