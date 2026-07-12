@@ -51,24 +51,24 @@ var rootCmd = &cobra.Command{
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		dbInit()
-		TaskUpdateFileSize()
-		dbUpdateHashBySameSize()
 
 		wg := sync.WaitGroup{}
 		wg.Add(2)
-
-		go func() {
-			defer wg.Done()
-			TaskExportSameFiles()
-		}()
-
 		go func() {
 			defer wg.Done()
 			TaskExportEmptyFiles()
 		}()
-
+		go func() {
+			defer wg.Done()
+			TaskUpdateFileSize()
+		}()
 		wg.Wait()
+
 		//
+		dbUpdateHashBySameSize()
+
+		//
+		TaskExportSameFiles()
 
 		dbClose()
 

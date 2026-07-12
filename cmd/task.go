@@ -12,7 +12,7 @@ import (
 func TaskUpdateFileSize() error {
 	t1 := time.Now()
 	var fsize string
-	fileCount := 0
+	var fileCount int = 0
 
 	tx, err := db.Begin()
 	FatalError("TaskUpdateFileSize:Begin", err)
@@ -33,27 +33,27 @@ func TaskUpdateFileSize() error {
 			return nil
 		}
 
+		fileCount++
+		PrintSpinner(fmt.Sprintf("%d,em: %d", fileCount, len(chanEmptyFile)))
+
 		fpath = ToUnixSlash(fpath)
 		relpath := strings.TrimPrefix(strings.TrimPrefix(fpath, SourceDir), "/")
 
-		fsize = fmt.Sprintf("%v", finfo.Size())
-		if fsize == "0" {
+		if finfo.Size() == 0 {
 			chanEmptyFile <- relpath
-		} else {
-			//dbUpdatePathSize(relpath, fsize)
-			_, err = stmt.Exec(relpath, fsize, fsize)
-			PrintError("TaskUpdateFileSize:Exec", err)
+			return nil
 		}
 
-		fileCount++
-		PrintSpinner(fmt.Sprintf("%d", fileCount))
+		fsize = fmt.Sprintf("%v", finfo.Size())
+		_, err = stmt.Exec(relpath, fsize, fsize)
+		PrintError("TaskUpdateFileSize:Exec", err)
 
 		return nil
 	})
+	chanEmptyFile <- flagAllDone
+
 	stmt.Close()
 	tx.Commit()
-
-	chanEmptyFile <- doneEmptyEntry
 
 	PrintlnInfo("TaskUpdateFileSize", "Total ", fileCount, ", Elapse ", time.Since(t1))
 
@@ -65,7 +65,7 @@ func TaskHashFileFromChan() error {
 	wg := sync.WaitGroup{}
 	for {
 		ch := <-chanHashFile
-		if ch == doneHashEntry {
+		if ch == flagAllDone {
 			break
 		}
 
@@ -106,46 +106,9 @@ func TaskSelectFilesForHash() error {
 	}
 	rows.Close()
 
-	chanHashFile <- doneHashEntry
+	chanHashFile <- flagAllDone
 
 	PrintlnInfo("TaskSelectFiles Elapse", time.Since(t1))
-	return nil
-}
-
-func TaskExportEmptyFiles() error {
-	t1 := time.Now()
-	emptyFilePath := filepath.Join(LogDir, "empty-files.html")
-	fpempty, err := os.Create(emptyFilePath)
-	PrintError("TaskExportEmptyFiles", err)
-
-	var lines []string
-	SaveFile(fpempty, styleCSS)
-	SaveFile(fpempty, "<body><ol>")
-	fcount := 0
-	for {
-		ch := <-chanEmptyFile
-		if ch == doneEmptyEntry {
-			break
-		}
-
-		if IsCancelAll {
-			break
-		}
-
-		fcount++
-		lines = append(lines, strings.Join([]string{"<li>", ch, "</li>"}, ""))
-		if len(lines) > 100 {
-			SaveFile(fpempty, strings.Join(lines, ""))
-			lines = lines[:0]
-		}
-	}
-
-	SaveFile(fpempty, strings.Join(lines, ""))
-	SaveFile(fpempty, "</ol><hr>Total: "+fmt.Sprintf("%v", fcount)+"</body></html>")
-	fpempty.Close()
-
-	PrintlnInfo("TaskExportEmptyFiles Elapse", time.Since(t1))
-
 	return nil
 }
 
@@ -213,11 +176,11 @@ func TaskCancelAll() error {
 		if IsReadyForExit {
 			break
 		}
-		if maxSleep > 10 {
+		if maxSleep > 5 {
 			break
 		}
 		DebugInfo("TaskCancelAll", "waiting for IsReadyForExit")
-		DebugInfo("chan", "chanEmptyFile: ", len(chanEmptyFile), ", chanHashFile: ", len(chanHashFile))
+		DebugInfo("chan", "chanHashFile: ", len(chanHashFile))
 		time.Sleep(time.Second)
 		maxSleep++
 	}

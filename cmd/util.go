@@ -43,27 +43,6 @@ func GetXxhashFile(fpath string) string {
 	return strconv.FormatUint(hasher.Sum64(), 10)
 }
 
-func GetXxhashBlock(fpath string) string {
-	fin, err := os.Open(fpath)
-	PrintError("GetXxhashFileOnce", err)
-	defer fin.Close()
-
-	hasher := xxhash.New()
-	buffer := make([]byte, bufSize)
-	_, err = fin.Read(buffer)
-	if err != nil {
-		PrintError("GetXxhashFileOnce", err)
-		return ""
-	}
-	_, err = hasher.Write(buffer)
-	if err != nil {
-		PrintError("GetXxhashFileOnce", err)
-		return ""
-	}
-
-	return strconv.FormatUint(hasher.Sum64(), 10)
-}
-
 func SaveFile(fp *os.File, fdata string) error {
 	_, err := fp.WriteString(fdata)
 	FatalError("SaveFile", err)

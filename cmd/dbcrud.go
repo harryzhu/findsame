@@ -7,12 +7,16 @@ import (
 	"time"
 )
 
+const (
+	minBlockHashSize int = 8 << 20
+)
+
 func dbInit() error {
 	openDB()
 	err := db.Ping()
 	FatalError("dbInit", err)
 
-	sqlCmd := `CREATE TABLE IF NOT EXISTS pathash(id INTEGER PRIMARY KEY AUTOINCREMENT, fpath TEXT, fsize TEXT, fhash TEXT);
+	sqlCmd := `CREATE TABLE IF NOT EXISTS pathash(id INTEGER PRIMARY KEY AUTOINCREMENT, fpath TEXT, fsize TEXT, bhash TEXT, fhash TEXT);
 	CREATE UNIQUE INDEX IF NOT EXISTS idx_fpath ON pathash(fpath);`
 
 	DebugInfo("dbInit", sqlCmd)

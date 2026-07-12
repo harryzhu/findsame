@@ -5,15 +5,17 @@ import (
 )
 
 func init() {
-	doneEmptyEntry = "__ALLDONE__"
-	doneHashEntry = "__ALLDONE__"
+	flagAllDone = "__ALLDONE__"
 }
 
 var chanHashFile chan string = make(chan string, numCPU*2)
-var doneHashEntry string
+var chanHashBlock chan string = make(chan string, numCPU*2)
 
-var chanEmptyFile chan string = make(chan string, 8192)
-var doneEmptyEntry string
+var chanEmptyFile chan string = make(chan string, 4096)
+
+var flagAllDone string
+
+var safePathHash sync.Map
 
 var IsCancelAll bool = false
 
@@ -48,5 +50,3 @@ var styleCSS string = `<!doctype html><meta charset="utf-8">
 		}
 	</style>
 	`
-
-var safePathHash sync.Map
