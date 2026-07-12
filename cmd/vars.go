@@ -22,11 +22,18 @@ var IsCancelAll bool = false
 var IsReadyForExit bool = false
 
 var styleCSS string = `<!doctype html><meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta name="keywords" content="请在Chrome中打开" />
+	<title>Same Files|重复文件</title>
 	<style>
 	body{
 		margin-left: auto;
 		margin-right: auto;
 		max-width: 960px;
+		}
+	a{
+		text-decoration: none;
+		color: #ccc;
 		}
 	hr{
 		border: none;

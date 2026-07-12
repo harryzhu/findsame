@@ -85,7 +85,7 @@ func TaskHashFileFromChan() error {
 	}
 	wg.Wait()
 
-	PrintlnInfo("TaskHashFiles Elapse", time.Since(t1))
+	PrintlnInfo("TaskHashFiles", time.Since(t1))
 	return nil
 }
 
@@ -108,81 +108,6 @@ func TaskSelectFilesForHash() error {
 
 	chanHashFile <- flagAllDone
 
-	PrintlnInfo("TaskSelectFiles Elapse", time.Since(t1))
-	return nil
-}
-
-func TaskExportSameFiles() error {
-	t1 := time.Now()
-	//
-	sameFilePath := filepath.Join(LogDir, "same-files.html")
-	fpsame, err := os.Create(sameFilePath)
-	PrintError("TaskExportSameFiles", err)
-
-	var hpsame []string
-
-	sqlCmd := `select fhash from pathash where fhash is NOT NULL and fhash != "" group by fhash having count(*) > 1 order by fpath;`
-	rows, err := db.Query(sqlCmd)
-
-	var cfhash string
-	for rows.Next() {
-		err = rows.Scan(&cfhash)
-		PrintError("TaskExportSameFiles", err)
-		hpsame = append(hpsame, cfhash)
-	}
-
-	//
-	SaveFile(fpsame, styleCSS+"<ul>")
-	var line string
-	var lines []string
-
-	sqlCmd = "select fpath from pathash where fhash = ? order by fpath;"
-	stmt, err := db.Prepare(sqlCmd)
-	FatalError("TaskExportSameFiles:Prepare", err)
-
-	var cfpaths []string
-	var fileCount, duplicateCount int
-	for _, cfhash := range hpsame {
-		DebugInfo("cfhash", cfhash)
-		cfpaths = cfpaths[:0]
-		cfpaths = dbGetPathByHash(cfhash, stmt)
-		fileCount++
-		duplicateCount += len(cfpaths)
-		line = strings.Join(cfpaths, "<br>")
-		lines = append(lines, strings.Join([]string{"<li>", line, "</li>"}, ""))
-		if len(lines) > 100 {
-			SaveFile(fpsame, strings.Join(lines, ""))
-			lines = lines[:0]
-		}
-	}
-
-	stmt.Close()
-
-	SaveFile(fpsame, strings.Join(lines, ""))
-	SaveFile(fpsame, "</ul><hr>"+fmt.Sprintf("Files: %d, Same(Total): %d", fileCount, duplicateCount)+"<br></body></html>")
-
-	fpsame.Close()
-
-	PrintlnInfo("TaskExportSameFiles Elapse", time.Since(t1))
-
-	return nil
-}
-
-func TaskCancelAll() error {
-	IsCancelAll = true
-	PrintlnInfo(Cyan("TaskCancelAll"), " cancel all ...")
-	maxSleep := 0
-	for {
-		if IsReadyForExit {
-			break
-		}
-		if maxSleep > 5 {
-			break
-		}
-		DebugInfo("TaskCancelAll", "waiting for IsReadyForExit")
-		DebugInfo("chan", "chanHashFile: ", len(chanHashFile))
-		time.Sleep(time.Second)
-		maxSleep++
-	}
+	PrintlnInfo("TaskSelectFiles", time.Since(t1))
 	return nil
 }

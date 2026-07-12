@@ -56,7 +56,7 @@ var rootCmd = &cobra.Command{
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			TaskExportEmptyFiles()
+			ExportEmptyFiles()
 		}()
 		go func() {
 			defer wg.Done()
@@ -68,7 +68,7 @@ var rootCmd = &cobra.Command{
 		dbUpdateHashBySameSize()
 
 		//
-		TaskExportSameFiles()
+		ExportSameFiles()
 
 		dbClose()
 
